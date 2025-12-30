@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
-)
-
-const (
-	DataFile = "todo_cli.db"
 )
 
 // 数据库模型
@@ -54,7 +52,7 @@ type Storage struct {
 
 // 创建新的存储实例
 func NewStorage() (*Storage, error) {
-	db, err := gorm.Open(sqlite.Open(DataFile), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(dataFile()), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %v", err)
 	}
@@ -160,4 +158,40 @@ func (s *Storage) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+func dataFile() string {
+	homePath, err := os.UserHomeDir()
+	if err != nil {
+		// 兜底保存在当前运行目录下
+		return "todo_cli.db"
+	}
+	dir := filepath.Join(homePath, ".todo_cli")
+	err = ensureDir(dir)
+	if err != nil {
+		// 兜底保存在当前运行目录下
+		return "todo_cli.db"
+	}
+	return filepath.Join(dir, "todo_cli.db")
+}
+
+func ensureDir(dirPath string) error {
+	// 获取文件信息
+	info, err := os.Stat(dirPath)
+	if err == nil {
+		// 路径存在
+		if !info.IsDir() {
+			return fmt.Errorf("路径 %s 已存在但不是目录", dirPath)
+		}
+		return nil
+	}
+
+	// 检查是否是"不存在"的错误
+	if os.IsNotExist(err) {
+		// 创建目录
+		fmt.Printf("创建目录: %s\n", dirPath)
+		return os.MkdirAll(dirPath, 0755)
+	}
+
+	return fmt.Errorf("检查目录失败: %v", err)
 }
